@@ -1,15 +1,27 @@
 import discord
 from discord.ext import commands
 from secret.config import get_api_token
+import firebase_admin
+from firebase_admin import credentials
 
 api_token = get_api_token()
+
 client = commands.Bot(command_prefix='qq!')
 continue_adding = True
+id_available = False
+cred = credentials.Certificate(api_token)
+firebase_admin.initialize_app(cred)
 
 @client.event
 async def on_ready():
     print('We have logged in as {0.user}'.format(client))
     await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name='your messages :3'))
+
+@client.event
+async def on_message(message):
+    serverId = message.guild.id
+    while id_available == False:
+        
 
 @client.event
 async def on_reaction_add(reaction, user):
