@@ -1,16 +1,18 @@
 import discord
 from discord.ext import commands
-from secret.config import get_api_token
+from secret.config import get_api_token, get_service_key_path
 import firebase_admin
-from firebase_admin import credentials
+from firebase_admin import credentials, firestore
 
 api_token = get_api_token()
+service_key = get_service_key_path()
 
 client = commands.Bot(command_prefix='qq!')
 continue_adding = True
 id_available = False
-cred = credentials.Certificate(api_token)
+cred = credentials.Certificate(service_key)
 firebase_admin.initialize_app(cred)
+db = firestore.client()
 
 @client.event
 async def on_ready():
@@ -20,8 +22,6 @@ async def on_ready():
 @client.event
 async def on_message(message):
     serverId = message.guild.id
-    while id_available == False:
-        
 
 @client.event
 async def on_reaction_add(reaction, user):

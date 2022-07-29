@@ -30,10 +30,13 @@ async def on_message(message):
     })
 
 @client.command()
-async def get_response(ctx):
+async def getresponse(ctx):
     serverId = str(ctx.message.guild.id)
-    docs = db.collection(serverId).where(u'ignored', u'!=', True).stream()
+    await ctx.send("Good")
+    docs = db.collection(serverId).where(u'ignored', u'==', True).stream()
+    await ctx.send("Good")
     for doc in docs:
-        await ctx.send(f'{doc.id} => {doc.to_dict()}')
+        print(f'{doc.id} => {doc.to_dict()}')
+    await ctx.send("Good")
 
 client.run(api_token)
