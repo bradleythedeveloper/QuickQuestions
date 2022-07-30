@@ -1,18 +1,73 @@
 import discord
 from discord.ext import commands
-from secret.config import get_api_token, get_service_key_path
+from discord.utils import find
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials
+from firebase_admin import firestore
+import mysql.connector
+from mysql.connector import Error
+import pandas as pd
+from secret.config import get_sql_root_pw, get_api_token, get_service_key_path
+import random
+
+pw = get_sql_root_pw()
+
+def create_db_connection(host_name, user_name, user_password, db_name):
+    connection = None
+    try:
+        connection = mysql.connector.connect(
+            host=host_name,
+            user=user_name,
+            passwd=user_password,
+            database=db_name
+        )
+        print("MySQL Database connection successful")
+    except Error as err:
+        print(f"Error: '{err}'")
+
+    return connection
+
+connection = create_db_connection("localhost", "root", pw, "quickquestions")
+
+def execute_query(connection, query):
+    cursor = connection.cursor()
+    try:
+        cursor.execute(query)
+        connection.commit()
+        print("Query successful")
+    except Error as err:
+        print(f"Error: '{err}'")
+
+def read_query(connection, query):
+    cursor = connection.cursor()
+    result = None
+    try:
+        cursor.execute(query)
+        result = cursor.fetchall()
+        return result
+    except Error as err:
+        print(f"Error: '{err}'")
+
+def create_server_info(serverID):
+    create_server_table = """
+    CREATE TABLE server (
+        response_id INT PRIMARY KEY,
+        response_name VARCHAR(100),
+        triggers SET(null),
+        responses SET(null)
+        );
+    """
+    create_server_table.replace("server",str(serverID))
+    execute_query(connection, create_server_table)
 
 api_token = get_api_token()
-service_key = get_service_key_path()
 
 client = commands.Bot(command_prefix='qq!')
 continue_adding = True
 id_available = False
-cred = credentials.Certificate(service_key)
-firebase_admin.initialize_app(cred)
-db = firestore.client()
+all_triggers = []
+trigger_found = False
+responses = []
 
 @client.event
 async def on_ready():
@@ -20,80 +75,74 @@ async def on_ready():
     await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name='your messages :3'))
 
 @client.event
-async def on_message(message):
-    serverId = message.guild.id
+async def on_guild_join(guild):
+    general = find(lambda x: 'general' in x.name,  guild.text_channels)
+    if general and general.permissions_for(guild.me).send_messages:
+        message = await general.send('Hello {}!'.format(guild.name))
+        serverID = message.guild.id
+        # create_server_info(serverID)
 
 @client.event
-async def on_reaction_add(reaction, user):
-    emoji = reaction.emoji
-
-    if user.bot:
+async def on_message(message):
+    if(message.author.bot):
         return
+    all_triggers = []
+    trigger_found = False
+    responses = []
+    #serverID = message.guild.id
+    serverID = 897499735970152559
+    q1 = """
+    SELECT value
+    FROM actions
+    JOIN triggersresponses
+    ON actions.ID = triggersresponses.actionFK
+    WHERE serverId='insert_server_id'
+    AND type='trigger'; 
+    """
+    q1 = q1.replace("insert_server_id",str(serverID))
+    results = read_query(connection, q1)
+    for result in results:
+        result = list(result)
+        result = result[0]
+        all_triggers.append(result)
+    while trigger_found == False:
+        for trigger in all_triggers:
+            if trigger in message.content:
+                q1 = """
+                SELECT actionFK
+                FROM actions
+                JOIN triggersresponses
+                ON actions.ID = triggersresponses.actionFK
+                WHERE serverId='insert_server_id'
+                AND type='trigger'
+                AND value='insert_trigger'; 
+                """
+                q1 = q1.replace("insert_server_id",str(serverID))
+                q1 = q1.replace("insert_trigger",str(trigger))
+                results = read_query(connection, q1)
+                for result in results:
+                    result = list(result)
+                    result = result[0]
+                    responseID = result
+                q1 = """
+                SELECT value
+                FROM actions
+                JOIN triggersresponses
+                ON actions.ID = triggersresponses.actionFK
+                WHERE serverId='insert_server_id'
+                AND type='response'
+                AND actionFK='insert_response_id';
+                """
+                q1 = q1.replace("insert_server_id",str(serverID))
+                q1 = q1.replace("insert_response_id",str(responseID))
+                results = read_query(connection, q1)
+                for result in results:
+                    result = list(result)
+                    result = result[0]
+                    responses.append(result)
+                chosen_response = random.choice(responses)
+                await message.reply(chosen_response, mention_author=True)
+                trigger_found = True
+                break
 
-@client.command()
-async def test(ctx, *, arg):
-    await ctx.send(arg)
-
-@client.command()
-async def add(ctx):
-    is_correct = False
-    continue_adding = True
-    keyphrases = []
-    tick = '✔️'
-    cross = '❌'
-    valid_reactions = ['✔️', '❌']
-    def tick_check(reaction, user):
-        return user == ctx.author and str(reaction.emoji) in valid_reactions
-    # Step 1: Asking for response
-    def check(msg):
-        return msg.author == ctx.author and msg.channel == ctx.channel
-    await ctx.send('What response do you want QuickQuestions to give?')
-    # Waiting for new message
-    while is_correct == False:
-        response = await client.wait_for("message", check=check)
-        await ctx.send("Is this the right response? This will appear every time a key word/phrase is mentioned:")
-        react_msg = await ctx.send("'"+response.content+"'")
-        await react_msg.add_reaction(tick)
-        await react_msg.add_reaction(cross)
-        reaction, user = await client.wait_for('reaction_add', check=tick_check)
-        if str(reaction.emoji) == tick:
-            await ctx.send("Awesome!")
-            is_correct = True
-        if str(reaction.emoji) == cross:
-            await ctx.send("Enter your new response.")
-    await ctx.send("On to the next step.")
-
-    # Step 2: Asking for key words/phrases
-    is_correct = False
-    
-    await ctx.send('What words and phrases do you want QuickQuestions to give this response to?')
-    await ctx.send("Enter your first key word/phrase, and you'll be prompted to add more if you want to.")
-    await ctx.send("You'll be able to add to and change these words/phrases later.")
-    while is_correct == False:
-        while continue_adding == True:
-            response = await client.wait_for("message", check=check)
-            keyphrases.append(response.content)
-            react_msg = await ctx.send("Add another key word/phrase?")
-            await react_msg.add_reaction(tick)
-            await react_msg.add_reaction(cross)
-            reaction, user = await client.wait_for('reaction_add', check=tick_check)
-            if str(reaction.emoji) == tick:
-                await ctx.send("Enter your new key word/phrase.")
-            if str(reaction.emoji) == cross:
-                continue_adding = False    
-        await ctx.send("To confirm, these are all the words/phrases you want QuickQuestions to respond to:")
-        for phrase in keyphrases:
-            await ctx.send("'"+phrase+"'")
-
-        react_msg = await ctx.send("Is this correct?")
-        await react_msg.add_reaction(tick)
-        await react_msg.add_reaction(cross)
-        reaction, user = await client.wait_for('reaction_add', check=tick_check)
-        if str(reaction.emoji) == tick:
-            await ctx.send("Awesome!")
-            is_correct = True
-        if str(reaction.emoji) == cross:
-            await ctx.send("Enter your new key word/phrase.")
-            continue_adding = True
-    
 client.run(api_token)

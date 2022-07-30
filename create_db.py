@@ -10,14 +10,13 @@ from secret.config import get_sql_root_pw, get_api_token, get_service_key_path
 
 pw = get_sql_root_pw()
 
-def create_db_connection(host_name, user_name, user_password, db_name):
+def create_db_connection(host_name, user_name, user_password):
     connection = None
     try:
         connection = mysql.connector.connect(
             host=host_name,
             user=user_name,
             passwd=user_password,
-            database=db_name
         )
         print("MySQL Database connection successful")
     except Error as err:
@@ -25,26 +24,17 @@ def create_db_connection(host_name, user_name, user_password, db_name):
 
     return connection
 
-connection = create_db_connection("localhost", "root", pw, "test")
+connection = create_db_connection("localhost", "root", pw)
 
-def execute_query(connection, query):
+def create_database(connection, query):
     cursor = connection.cursor()
     try:
         cursor.execute(query)
-        connection.commit()
-        print("Query successful")
+        print("Database created successfully")
     except Error as err:
         print(f"Error: '{err}'")
 
-create_actions_table = """
-    CREATE TABLE actions(
-        ID INT PRIMARY KEY AUTO_INCREMENT,
-        serverId VARCHAR(18) NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        action TEXT NOT NULL,
-        type ENUM("trigger","response")
-    );
-    """
-execute_query(connection, create_actions_table)
+create_database_query = "CREATE DATABASE QuickQuestions"
+create_database(connection, create_database_query)
 
 
