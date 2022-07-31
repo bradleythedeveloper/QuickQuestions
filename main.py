@@ -6,7 +6,6 @@ from firebase_admin import credentials
 from firebase_admin import firestore
 import mysql.connector
 from mysql.connector import Error
-import pandas as pd
 from secret.config import get_sql_root_pw, get_api_token, get_service_key_path
 import random
 
@@ -48,23 +47,10 @@ def read_query(connection, query):
     except Error as err:
         print(f"Error: '{err}'")
 
-def create_server_info(serverID):
-    create_server_table = """
-    CREATE TABLE server (
-        response_id INT PRIMARY KEY,
-        response_name VARCHAR(100),
-        triggers SET(null),
-        responses SET(null)
-        );
-    """
-    create_server_table.replace("server",str(serverID))
-    execute_query(connection, create_server_table)
-
 api_token = get_api_token()
 
 client = commands.Bot(command_prefix='qq!')
 continue_adding = True
-id_available = False
 all_triggers = []
 trigger_found = False
 responses = []
@@ -83,8 +69,8 @@ async def on_guild_join(guild):
 
 @client.event
 async def on_message(message):
-    if(message.author.bot):
-        return
+    #if(message.author.bot):
+        #return
     all_triggers = []
     trigger_found = False
     responses = []
@@ -105,9 +91,10 @@ async def on_message(message):
         result = list(result)
         result = result[0]
         all_triggers.append(result)
-    while trigger_found == False:
-        for trigger in all_triggers:
+    for trigger in all_triggers:
+        if trigger_found == False:
             if trigger in message.content:
+                trigger_found = True
                 # Getting the response ID from the trigger
                 query = """
                 SELECT actionFK
@@ -162,7 +149,10 @@ async def on_message(message):
                 chosen_response = random.choice(responses)
                 formatted_response = discord.Embed(title=response_name,description=chosen_response,color=0x800080)
                 await message.reply(embed=formatted_response, mention_author=True)
-                trigger_found = True
-                break
+    await client.process_commands(message)
+
+@client.command()
+async def textback(ctx, *, arg):
+    await ctx.send(arg)
 
 client.run(api_token)
