@@ -39,9 +39,9 @@ async def add(ctx):
     is_correct = False
     continue_adding = True
     keyphrases = []
-    tick = '✔️'
-    cross = '❌'
-    valid_reactions = ['✔️', '❌']
+    tick = '✅'
+    cross = '❎'
+    valid_reactions = ['✅', '❎']
     def tick_check(reaction, user):
         return user == ctx.author and str(reaction.emoji) in valid_reactions
     # Step 1: Asking for response

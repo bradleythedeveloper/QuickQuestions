@@ -80,7 +80,6 @@ async def on_guild_join(guild):
     if general and general.permissions_for(guild.me).send_messages:
         message = await general.send('Hello {}!'.format(guild.name))
         serverID = message.guild.id
-        # create_server_info(serverID)
 
 @client.event
 async def on_message(message):
@@ -91,7 +90,8 @@ async def on_message(message):
     responses = []
     #serverID = message.guild.id
     serverID = 897499735970152559
-    q1 = """
+    # Getting all triggers
+    query = """
     SELECT value
     FROM actions
     JOIN triggersresponses
@@ -99,8 +99,8 @@ async def on_message(message):
     WHERE serverId='insert_server_id'
     AND type='trigger'; 
     """
-    q1 = q1.replace("insert_server_id",str(serverID))
-    results = read_query(connection, q1)
+    query = query.replace("insert_server_id",str(serverID))
+    results = read_query(connection, query)
     for result in results:
         result = list(result)
         result = result[0]
@@ -108,7 +108,8 @@ async def on_message(message):
     while trigger_found == False:
         for trigger in all_triggers:
             if trigger in message.content:
-                q1 = """
+                # Getting the response ID from the trigger
+                query = """
                 SELECT actionFK
                 FROM actions
                 JOIN triggersresponses
@@ -117,14 +118,15 @@ async def on_message(message):
                 AND type='trigger'
                 AND value='insert_trigger'; 
                 """
-                q1 = q1.replace("insert_server_id",str(serverID))
-                q1 = q1.replace("insert_trigger",str(trigger))
-                results = read_query(connection, q1)
+                query = query.replace("insert_server_id",str(serverID))
+                query = query.replace("insert_trigger",str(trigger))
+                results = read_query(connection, query)
                 for result in results:
                     result = list(result)
                     result = result[0]
                     responseID = result
-                q1 = """
+                # Getting a response
+                query = """
                 SELECT value
                 FROM actions
                 JOIN triggersresponses
@@ -133,15 +135,33 @@ async def on_message(message):
                 AND type='response'
                 AND actionFK='insert_response_id';
                 """
-                q1 = q1.replace("insert_server_id",str(serverID))
-                q1 = q1.replace("insert_response_id",str(responseID))
-                results = read_query(connection, q1)
+                query = query.replace("insert_server_id",str(serverID))
+                query = query.replace("insert_response_id",str(responseID))
+                results = read_query(connection, query)
                 for result in results:
                     result = list(result)
                     result = result[0]
                     responses.append(result)
+                # Getting the response's name
+                query = """
+                SELECT DISTINCT name
+                FROM actions
+                JOIN triggersresponses
+                ON actions.ID = triggersresponses.actionFK
+                WHERE serverId='insert_server_id'
+                AND type='response'
+                AND actionFK='insert_response_id';
+                """
+                query = query.replace("insert_server_id",str(serverID))
+                query = query.replace("insert_response_id",str(responseID))
+                results = read_query(connection, query)
+                for result in results:
+                    result = list(result)
+                    result = result[0]
+                    response_name = result
                 chosen_response = random.choice(responses)
-                await message.reply(chosen_response, mention_author=True)
+                formatted_response = discord.Embed(title=response_name,description=chosen_response,color=0x800080)
+                await message.reply(embed=formatted_response, mention_author=True)
                 trigger_found = True
                 break
 
